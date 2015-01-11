@@ -41,3 +41,8 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# QT
+build-JPEGParser-Desktop_Qt_5_2_1_MinGW_32bit-Debug
+build-JPEGParser-Desktop_Qt_5_2_1_MinGW_32bit-Release
+*.user
