@@ -10,7 +10,8 @@ HEADERS += \
     optionsdialog.h \
     searchdialog.h \
     tjpgdec/integer.h \
-    tjpgdec/tjpgd.h
+    tjpgdec/tjpgd.h \
+    jpegimage.h
 
 
 SOURCES += \
@@ -18,7 +19,8 @@ SOURCES += \
     mainwindow.cpp \
     optionsdialog.cpp \
     searchdialog.cpp \
-    tjpgdec/tjpgd.c
+    tjpgdec/tjpgd.c \
+    jpegimage.cpp
 
 RESOURCES += \
     qhexedit.qrc
