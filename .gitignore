@@ -45,5 +45,7 @@ Temporary Items
 # QT
 build-JPEGParser-Desktop_Qt_5_2_1_MinGW_32bit-Debug
 build-JPEGParser-Desktop_Qt_5_2_1_MinGW_32bit-Release
+build-demo-Desktop_Qt_5_2_1_MinGW_32bit-Debug
+build-demo-Desktop_Qt_5_2_1_MinGW_32bit-Release
 *.user
 qhexedit2

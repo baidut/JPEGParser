@@ -5,6 +5,7 @@ class JpegImage
 {
 public:
     JpegImage();
+    int open(const char* filename);
 };
 
 #endif // JPEGIMAGE_H

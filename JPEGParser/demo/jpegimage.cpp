@@ -1,17 +1,13 @@
 #include "jpegimage.h"
 
-JpegImage::JpegImage()
-{
-}
-
 /*------------------------------------------------*/
 /* TJpgDec Quick Evaluation Program for PCs       */
 /*------------------------------------------------*/
 
 #include <stdio.h>
 #include <string.h>
-#include "tjpgd.h"
-
+#include "tjpgdec/tjpgd.h"
+#include <qDebug>
 
 /* User defined device identifier */
 typedef struct {
@@ -73,17 +69,22 @@ UINT out_func (JDEC* jd, void* bitmap, JRECT* rect)
 /* Program Main                 */
 /*------------------------------*/
 
-int main (int argc, char* argv[])
+JpegImage::JpegImage() {
+}
+int JpegImage::open(const char* filename)
 {
     void *work;       /* Pointer to the decompressor work area */
     JDEC jdec;        /* Decompression object */
     JRESULT res;      /* Result code of TJpgDec API */
     IODEV devid;      /* User defined device identifier */
 
+    qDebug("Open file:%s",filename);
     /* Open a JPEG file */
-    if (argc < 2) return -1;
-    devid.fp = fopen(argv[1], "rb");
-    if (!devid.fp) return -1;
+    devid.fp = fopen(filename, "rb");
+    if (!devid.fp) {
+        qDebug("Fail to open file:%s",filename);
+        return -1;
+    }
 
     /* Allocate a work area for TJpgDec */
     work = malloc(3100);
@@ -92,24 +93,24 @@ int main (int argc, char* argv[])
     res = jd_prepare(&jdec, in_func, work, 3100, &devid);
     if (res == JDR_OK) {
         /* Ready to dcompress. Image info is available here. */
-        printf("Image dimensions: %u by %u. %u bytes used.\n", jdec.width, jdec.height, 3100 - jdec.sz_pool);
+        qDebug("Image dimensions: %u by %u. %u bytes used.\n", jdec.width, jdec.height, 3100 - jdec.sz_pool);
 
-        devid.fbuf = malloc(3 * jdec.width * jdec.height); /* Frame buffer for output image (assuming RGB888 cfg) */
+        devid.fbuf = (BYTE *)malloc(3 * jdec.width * jdec.height); /* Frame buffer for output image (assuming RGB888 cfg) */
         devid.wfbuf = jdec.width;
 
         res = jd_decomp(&jdec, out_func, 0);   /* Start to decompress with 1/1 scaling */
         if (res == JDR_OK) {
             /* Decompression succeeded. You have the decompressed image in the frame buffer here. */
-            printf("\rOK  \n");
+            qDebug("\rOK  \n");
 
         } else {
-            printf("Failed to decompress: rc=%d\n", res);
+            qDebug("Failed to decompress: rc=%d\n", res);
         }
 
         free(devid.fbuf);    /* Discard frame buffer */
 
     } else {
-        printf("Failed to prepare: rc=%d\n", res);
+        qDebug("Failed to prepare: rc=%d\n", res);
     }
 
     free(work);             /* Discard work area */
