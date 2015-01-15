@@ -2,15 +2,8 @@
 
 #include "mainwindow.h"
 
-#include "jpegimage.h"
-
 int main(int argc, char *argv[])
 {
-    qDebug("Test begin!");
-    JpegImage* jpg = new JpegImage();
-    jpg->open("jpeg.jpeg");
-    qDebug("Test end!");
-
     Q_INIT_RESOURCE(qhexedit);
     QApplication app(argc, argv);
     app.setApplicationName("QHexEditor");

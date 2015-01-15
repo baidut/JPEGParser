@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QHexEdit>
 
+#include <QTreeWidgetItem>
+
 #include "optionsdialog.h"
 #include "searchdialog.h"
 
@@ -44,6 +46,8 @@ private slots:
     void showOptionsDialog();
     void showSearchDialog();
 
+    void setSelection(int address);// 需要解析address所在的块，所以放在一起设置
+
 private:
     void init();
     void connectActions();
@@ -63,6 +67,8 @@ private:
     QLabel *lbAddress, *lbAddressName;
     QLabel *lbOverwriteMode, *lbOverwriteModeName;
     QLabel *lbSize, *lbSizeName;
+
+    QTreeWidgetItem *image;
 };
 
 #endif

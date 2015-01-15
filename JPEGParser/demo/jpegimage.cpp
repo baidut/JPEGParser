@@ -95,6 +95,9 @@ int JpegImage::open(const char* filename)
         /* Ready to dcompress. Image info is available here. */
         qDebug("Image dimensions: %u by %u. %u bytes used.\n", jdec.width, jdec.height, 3100 - jdec.sz_pool);
 
+        this->height = jdec.height;
+        this->width = jdec.width;
+
         devid.fbuf = (BYTE *)malloc(3 * jdec.width * jdec.height); /* Frame buffer for output image (assuming RGB888 cfg) */
         devid.wfbuf = jdec.width;
 
