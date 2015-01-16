@@ -48,6 +48,8 @@ private slots:
 
     void setSelection(int address);// 需要解析address所在的块，所以放在一起设置
 
+    void on_treeWidget_itemClicked(QTreeWidgetItem *item, int column);
+
 private:
     void init();
     void connectActions();
@@ -69,6 +71,13 @@ private:
     QLabel *lbSize, *lbSizeName;
 
     QTreeWidgetItem *image;
+    quint32 offset;
+    QDataStream *in;
+
+    /*inline*/ quint32          readJpegParm    (int size,QTreeWidgetItem* parent,QString field,QString infor);// 参数为负数的情形不能处理
+               quint16          readJpegMarker  (){quint16 marker;Q_ASSERT(in);(*in)>>marker;offset+=2;return marker;}
+    /*inline*/ void             newJpegMarker   (         QTreeWidgetItem* parent,QString field,QString infor);
+    /*inline*/ QTreeWidgetItem* newJpegItem     (         QTreeWidgetItem* parent,QString field,QString infor);
 };
 
 #endif

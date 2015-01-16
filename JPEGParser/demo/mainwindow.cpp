@@ -14,21 +14,38 @@
 #include "ui_mainwindow.h"
 
 #include "jpegimage.h"
-void newJpegParm(QTreeWidgetItem* parent,int address,QString field,QString value,QString infor=QString("")){
+
+// TODO 添加定位
+// 为了更加方便，将文件指针和文件流入口作为类成员
+quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,QString infor=QString("")){
+    Q_ASSERT(in);
+
     QStringList ls;
-    ls<<field<<"Parm"<<value<<infor<<QString("0x%1").arg(address,0,16);//16进制,占2位,空位补0 QString::number(address,16);
+    quint8 parmU8;
+    quint16 parmU16; // 不能处理负数的情况
+    quint32 parm;
+
+    switch(size){
+    case 1: (*in) >> parmU8;parm = parmU8;break;
+    case 2: (*in) >> parmU16;parm = parmU16;break;
+    }
+    ls<<field<<"Parm"<<QString::number(parm)<<infor<<QString("0x%1").arg(offset,0,16);//16进制,占2位,空位补0 QString::number(address,16);
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
+    parent->addChild(item);
+    offset+=size;
+
+    return parm;
+}
+
+void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
+    QStringList ls;
+    ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(offset-2,0,16);//注意此时marker已经读入
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
 }
-void newJpegMarker(QTreeWidgetItem* parent,int address,QString field,QString infor=QString("")){
+QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(address,0,16);//QString::number(address);
-    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
-    parent->addChild(item);
-}
-QTreeWidgetItem* newJpegItem(QTreeWidgetItem* parent,int address,QString field,QString infor=QString("")){
-    QStringList ls;
-    ls<<field<<""<<""<<infor<<QString("0x%1").arg(address,0,16);//QString::number(address);
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset,0,16);//QString::number(address);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
@@ -44,6 +61,22 @@ void MainWindow::setSelection(int address){
         ui->HexEdit->setSelection(0,2);
         ui->treeWidget->setCurrentItem(image->child(2)); // 从0开始计
     }
+}
+
+void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
+#define COLUMN_OF_ADDR 4
+    (void)column;// 暂不使用选中列信息;
+    // 通过父亲定位到树形结构的下一个兄弟
+    QTreeWidgetItem* parent = item->parent();
+    QString start = item->text(COLUMN_OF_ADDR);
+    QString end = parent->child(parent->indexOfChild(item)+1)->text(COLUMN_OF_ADDR);
+    // TODO 下一个兄弟找不到的情况
+    bool ok = true;
+    int startAddr = start.toInt(&ok,16);
+    Q_ASSERT(ok);
+    int endAddr = end.toInt(&ok,16); // when base = 0, If the string begins with "0x", base 16 is used;
+    Q_ASSERT(ok);
+    ui->HexEdit->setSelection(startAddr,endAddr);
 }
 
 /*****************************************************************************/
@@ -96,47 +129,32 @@ void MainWindow::open()
 
         QFile file(fileName);
         file.open(QIODevice::ReadOnly);
-        QDataStream in(&file);    // read the data serialized from the file
+        in = new QDataStream(&file);// QDataStream in(&file);    // read the data serialized from the file
+        offset = 0;
 
-        quint16 marker; //QDataStream & QDataStream::operator>>(quint32 & i)
-        in >> marker;  // extract a marker
-        qDebug("marker:%x",marker);
-
-        if(marker!=0XFFD8){ //&&marker!=0XD8FF
+        if(readJpegMarker()!=0XFFD8){ //&&marker!=0XD8FF
             QMessageBox::warning(this,tr("Err"),tr("Err: SOI is not detected!\n"));
             return;
         }
-        newJpegMarker(image,0,"SOI",QString("Start Of Image"));
+        newJpegMarker(image,"SOI",QString("Start Of Image"));
         QTreeWidgetItem * frame;
         QTreeWidgetItem * frameHeader;
 
-        int offset = 2;
         for (;;) {
-            quint32 parmU32;
-            quint16 parmU16;
-            quint8  parmU8;
-            qint32  parmS32;
-            qint16  parmS16;
-            quint16 Nf;
-
-            in >> marker;
-            switch (marker & 0xFF) {
+            //quint16 Lf,Y,X;
+            quint8  Nf;
+            switch (readJpegMarker() & 0xFF) {
                 case 0xC0:  /* SOF0 (baseline JPEG) */
                        /* Load segment data */
-                    frame = newJpegItem(image,offset,"Frame");
-                    frameHeader = newJpegItem(frame,offset,"Frame Header",QString("Frame"));
-                    newJpegMarker(frameHeader,offset,"SOF",QString("Start Of Frame"));
-                    in >> parmU16;
-                    newJpegParm(frameHeader,offset+=2,"Lf",QString::number(parmU16),"Frame header length");
-                    in >> parmU8;
-                    newJpegParm(frameHeader,offset++,"P",QString::number(parmU8),"Sample precision");
-                    in >> parmU16;
-                    newJpegParm(frameHeader,offset+=2,"Y",QString::number(parmU16),"Height,Number of lines");
-                    in >> parmU16;
-                    newJpegParm(frameHeader,offset+=2,"X",QString::number(parmU16),"Width,Number of samples per line");
-                    in >> parmU8;
-                    Nf = parmU8;
-                    newJpegParm(frameHeader,offset++,"Nf",QString::number(parmU8),"Number of image components in frame"); // 3 YCbCr
+                    frame = newJpegItem(image,"Frame");
+                    frameHeader = newJpegItem(frame,"Frame Header",QString("Frame"));
+                    newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
+                    // in >> Lf >> P >> Y >> X >> Nf ;
+                    readJpegParm(2,frameHeader,"Lf","Frame header length");
+                    readJpegParm(1,frameHeader,"P","Sample precision");
+                    readJpegParm(2,frameHeader,"Y","Height,Number of lines");
+                    readJpegParm(2,frameHeader,"X","Width,Number of samples per line");
+                    Nf = readJpegParm(2,frameHeader,"Nf","Number of image components in frame"); // 3 YCbCr
 
                     /* Check three image components
                     components = newJpegItem(image,2,"component-parm",QString("Frame");
@@ -145,7 +163,7 @@ void MainWindow::open()
                        newJpegItem(frameHeader,2,"Nf",QString::number(parmU16),"Number of image components in frame");
                     }*/
                     return;//break;
-                default:offset+=2;break;
+                default:break;
             }
 
         }
@@ -410,6 +428,3 @@ void MainWindow::writeSettings()
     settings.setValue("pos", pos());
     settings.setValue("size", size());
 }
-
-
-

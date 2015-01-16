@@ -25,6 +25,7 @@ qDebug()<<mm<<endl;  //调试时，在console中输出
 
 树形结构
 http://www.cnblogs.com/Romi/archive/2012/04/16/2452709.html
+包括点击节点的事件响应
 
 collect2: ld return 1 exit status
 程序异常结束。的情形经常会出现这种问题
@@ -50,3 +51,17 @@ Parameter*	PARM*
 
 Qt数字转字符串
 QString::number(num);
+
+TODO：
+tab、左右键可以切换到下一个块
+
+调试
+    QString s = item->text(0);
+    QByteArray ba = s.toLatin1();
+    char *mm = ba.data();
+    qDebug("Data:%s",mm);
+    // qDebug相当于printf，但是加了回车，不支持QString qDebug("Data:%s",mm);
+    
+    最简单的方式
+    qDebug()<<s;
+    
