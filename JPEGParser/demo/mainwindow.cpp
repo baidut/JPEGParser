@@ -75,7 +75,7 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
     QTreeWidgetItem* parent = item->parent();
     QString start = item->text(COLUMN_OF_ADDR);
     QString end = parent->child(parent->indexOfChild(item)+1)->text(COLUMN_OF_ADDR);
-    // TODO 下一个兄弟找不到的情况
+    // TODO 下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
     bool ok = true;
     int startAddr = start.toInt(&ok,16);
     Q_ASSERT(ok);
@@ -142,20 +142,22 @@ void MainWindow::open()
             return;
         }
         newJpegMarker(image,"SOI",QString("Start Of Image"));
-        QTreeWidgetItem * frame;
-        QTreeWidgetItem * frameHeader;
-        QTreeWidgetItem * components;
+        QTreeWidgetItem * frame = NULL;
+        QTreeWidgetItem * frameHeader = NULL;
+        QTreeWidgetItem * components = NULL;
+
+        QTreeWidgetItem * scan;
+        QTreeWidgetItem * scanHeader = NULL;
 
         for (;;) {
             //quint16 Lf,Y,X;
             quint8  Nf;
-            switch (readJpegMarker() & 0xFF) {
-                case 0xC0:  /* SOF0 (baseline JPEG) */
+            switch (readJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
+                case 0xFFC0:  /* SOF0 (baseline JPEG) */
                        /* Load segment data */
                     frame = newJpegItem(image,"Frame");
                     frameHeader = newJpegItem(frame,"Frame Header");
                     newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
-                    // in >> Lf >> P >> Y >> X >> Nf ;
                     readJpegParm(16,frameHeader,"Lf","Frame header length");
                     readJpegParm(8,frameHeader,"P","Sample precision");
                     readJpegParm(16,frameHeader,"Y","Height,Number of lines");
@@ -169,10 +171,29 @@ void MainWindow::open()
                        readJpegParm(4,components,QString("H%1&V%1").arg(i),"Horizontal&Vertical sampling factor");
                        readJpegParm(8,components,QString("Tq%1").arg(i),"Quantization table destination selector");
                     }
-                    return;//break;
+                    break;
+
+                case 0xFFDA:  /* SOS */
+                    /* Load segment data */
+                    // 标准情况只有一个Scan
+                    Q_ASSERT(frame);
+                    scan = newJpegItem(frame,"Scan");
+                    scanHeader = newJpegItem(scan,"Scan Header");
+                    newJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
+                    readJpegParm(16,scanHeader,"Ls","Scan header length");
+                    readJpegParm(8,scanHeader,"Ns","Number of image components in scan");
+                    components = newJpegItem(scanHeader,"component-parm");
+                    for (int i = 1; i <= Nf; i++) {
+                       readJpegParm(8,components,QString("Cs%1").arg(i),"Scan component selector");
+                       readJpegParm(4,components,QString("Td%1&Ta%1").arg(i),"DC&AC entropy coding table destination selector ");
+                    }
+                    readJpegParm(8,scanHeader,"Ss","Start of spectral or predictor selection");
+                    readJpegParm(8,scanHeader,"Se","End of spectral selection");
+                    readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
+                    readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
+                    return;
                 default:break;
             }
-
         }
         connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
     }
