@@ -22,7 +22,22 @@
      <widget class="QTreeWidget" name="treeWidget">
       <column>
        <property name="text">
-        <string notr="true">1</string>
+        <string>Field</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Value</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Infor</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string notr="true">Addr</string>
        </property>
       </column>
      </widget>

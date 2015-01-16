@@ -36,3 +36,17 @@ setCurrentItem(QTreeWidgetItem* item);
 
 方案1：分层显示，类似wireshark
 方案2：树形显示，先采用这种方式
+
+方案1：一次分析完成生成，先采用这种方式
+方案2：点击事件触发分析
+
+只支持baseline JPEG（标准型） Y/Cb/Cr format 4:4:4, 4:2:0 or 4:2:2
+JPEG (baseline)压缩综述 http://www.compotech.com.cn/cms/a/changshangdabenying/2007/0205/5320.html
+使用渐进式 JPEG 来提升用户体验 http://blog.jobbole.com/44038/
+
+一些英文词的标准缩写 http://blog.csdn.net/carpinter/article/details/6975740
+Parameter*	PARM*
+
+
+Qt数字转字符串
+QString::number(num);

@@ -15,6 +15,15 @@
 
 #include "jpegimage.h"
 
+QTreeWidgetItem* newJpegItem(QTreeWidgetItem* parent,int address,QString field,QString value){
+    QStringList ls;
+    ls<<field<<value<<QString::number(address);
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
+    parent->addChild(item);
+    return item;
+}
+
+/*
 typedef struct{
     QTreeWidgetItem *Tables;
     QTreeWidgetItem *frameHeader;
@@ -24,7 +33,63 @@ typedef struct{
     QTreeWidgetItem *SOI;
     JpegFrameTree   *frame;
     QTreeWidgetItem *EOI;
+
+    // select corresponding item according to address(when mouse over or clicked)
+    void selectItem(int address){
+        if(address<2){
+            return SOI;
+        }
+        else if(address>){
+            return EOI;
+        }
+        else return
+    }
 }JpegImageTree;
+
+
+// 解析时构建节点
+QStringList ls = QString("Image");
+Node* Tree = new Node(ui->treeWidget,ls,0);
+Node* soi = new Node(Tree,ls,0);
+// 触发选中
+
+
+// 要实现每个item都有addr与其匹配，一种方式是建表查表
+// 这里采用另一种方法，封装树操作
+typedef struct{
+    int addr;
+    QTreeWidgetItem *item;
+    QList<Node*>     child;
+    // 根据父节点和内容构造
+    Node(Node* parent,QStringList content,int addr){
+        this->item = new QTreeWidgetItem(parent->item,content);
+        this->addr = addr;
+
+        parent->item->addChild(child->item);//parent->append(this);
+        parent->child.append(this);
+    }
+    void selectAddress(int addr){
+        int N = item->childCount();
+        if(N==0)item->setSelected(true);
+        else{
+            for(int i=0;i<N;i++){
+                if()
+            }
+        }
+    }
+}Node;*/
+void MainWindow::setSelection(int address){
+    /*int N = Tree->item->childCount();
+    Node* node = Tree;
+    for(int i=0;i<N;i++){
+        if(node->item->child(i))
+    }*/
+
+    if(address<2){
+        ui->HexEdit->setSelection(0,2);
+        ui->treeWidget->setCurrentItem(image->child(2)); // 从0开始计
+    }
+}
 
 /*****************************************************************************/
 /* Public methods */
@@ -74,32 +139,32 @@ void MainWindow::open()
         jpg->open(mm);
         qDebug("Test end!");
 
-        ui->treeWidget->setColumnCount(1); //设置列数
-        ui->treeWidget->setHeaderLabel(tr("JPEG")); //设置头的标题
+        /* 放在ui里设置 QStringList headers;
+        headers << "Field" << "Value" << "Addr" << "Infor";
+        ui->treeWidget->setColumnCount(headers.length());
+        ui->treeWidget->setHeaderLabels(headers);*/
 
         /*QList<QTreeWidgetItem *> items;
         for (int i = 0; i < 3; ++i)
             items.append(new QTreeWidgetItem((QTreeWidget*)0, QStringList(QString("item: %1").arg(i))));
         ui->treeWidget->insertTopLevelItems(0, items);*/
+        QStringList ls;
+        ls << "Image" << QString("%1 X %2 ,XXX bytes")
+              .arg(jpg->getWidth())
+              .arg(jpg->getHeight());
+        image = new QTreeWidgetItem(ui->treeWidget,ls);
 
-        image = new QTreeWidgetItem(ui->treeWidget,QStringList(QString("Image (%1 X %2 ,XXX bytes)")
-                                                                                .arg(jpg->getWidth())
-                                                                                .arg(jpg->getHeight())
-                                                                                ));
+        /*image = newJpegItem(ui->treeWidget,0,"Image",QString("%1 X %2 ,XXX bytes")
+                            .arg(jpg->getWidth())
+                            .arg(jpg->getHeight()));
+                            //ui->treeWidget 不能直接传入
+        */
         //imageItem1->setIcon(0,QIcon("xxx.png"));
-        QTreeWidgetItem *width = new QTreeWidgetItem(image,QStringList(QString("Width\t: %1 pixels").arg(jpg->getWidth()))); //子节点1
-        QTreeWidgetItem *height = new QTreeWidgetItem(image,QStringList(QString("Height\t: %1 pixels").arg(jpg->getHeight()))); //子节点1
+        QTreeWidgetItem *width = newJpegItem(image,0,"Width",QString("%1 pixels").arg(jpg->getWidth()));
+        QTreeWidgetItem *height = newJpegItem(image,0,"Height",QString("%1 pixels").arg(jpg->getHeight()));
+        QTreeWidgetItem *soi = newJpegItem(image,0,"SOI",QString("0XFFD8 Start Of Image"));
+        QTreeWidgetItem *eoi = newJpegItem(image,0,"EOI",QString("0XFFD9 End Of Image"));
 
-        image->addChild(width); //添加子节点
-        image->addChild(height);
-        image->addChild(new QTreeWidgetItem(image,QStringList(QString("SOI\t: 0XFFD8 Start Of Image"))));
-        image->addChild(new QTreeWidgetItem(image,QStringList(QString("EOI\t: 0XFFD9 End Of Image"))));
-        //QTreeWidgetItem *imageItem2_1 = new QTreeWidgetItem(imageItem2,QStringList(QString("Band1"))); //子节点1
-        //QTreeWidgetItem *imageItem2_2 = new QTreeWidgetItem(imageItem2,QStringList(QString("Band2"))); //子节点2
-        //imageItem2->addChild(imageItem2_1);  //添加子节点
-        //imageItem2->addChild(imageItem2_2);
-
-        //这里连接会造成程序异常结束。需要等待文件打开，否则无法选择
         connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
     }
 }
@@ -363,9 +428,4 @@ void MainWindow::writeSettings()
 }
 
 
-void MainWindow::setSelection(int address){
-    if(address<2){
-        ui->HexEdit->setSelection(0,2);
-        ui->treeWidget->setCurrentItem(image->child(2)); // 从0开始计
-    }
-}
+
