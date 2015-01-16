@@ -26,13 +26,18 @@ quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,
     quint32 parm;
 
     switch(size){
-    case 1: (*in) >> parmU8;parm = parmU8;break;
-    case 2: (*in) >> parmU16;parm = parmU16;break;
+    case 4: // 注意这里代表两个占4bit的，放在一起，由于无法选中半个字节，所以放在一起处理
+    case 8: (*in) >> parmU8;parm = parmU8;break;
+    case 16: (*in) >> parmU16;parm = parmU16;break;
     }
-    ls<<field<<"Parm"<<QString::number(parm)<<infor<<QString("0x%1").arg(offset,0,16);//16进制,占2位,空位补0 QString::number(address,16);
+    QString value;
+    if(size==4)value = QString("%1 & %2").arg(parm/16).arg(parm%16);
+    else  value = QString::number(parm);
+    ls<<field<<"Parm"<<value<<infor<<QString("0x%1").arg(offset,0,16);//16进制,占2位,空位补0 QString::number(address,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
-    offset+=size;
+
+    offset+=(size==4)?1:(size/8);
 
     return parm;
 }
@@ -139,6 +144,7 @@ void MainWindow::open()
         newJpegMarker(image,"SOI",QString("Start Of Image"));
         QTreeWidgetItem * frame;
         QTreeWidgetItem * frameHeader;
+        QTreeWidgetItem * components;
 
         for (;;) {
             //quint16 Lf,Y,X;
@@ -147,21 +153,22 @@ void MainWindow::open()
                 case 0xC0:  /* SOF0 (baseline JPEG) */
                        /* Load segment data */
                     frame = newJpegItem(image,"Frame");
-                    frameHeader = newJpegItem(frame,"Frame Header",QString("Frame"));
+                    frameHeader = newJpegItem(frame,"Frame Header");
                     newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
                     // in >> Lf >> P >> Y >> X >> Nf ;
-                    readJpegParm(2,frameHeader,"Lf","Frame header length");
-                    readJpegParm(1,frameHeader,"P","Sample precision");
-                    readJpegParm(2,frameHeader,"Y","Height,Number of lines");
-                    readJpegParm(2,frameHeader,"X","Width,Number of samples per line");
-                    Nf = readJpegParm(2,frameHeader,"Nf","Number of image components in frame"); // 3 YCbCr
+                    readJpegParm(16,frameHeader,"Lf","Frame header length");
+                    readJpegParm(8,frameHeader,"P","Sample precision");
+                    readJpegParm(16,frameHeader,"Y","Height,Number of lines");
+                    readJpegParm(16,frameHeader,"X","Width,Number of samples per line");
+                    Nf = readJpegParm(8,frameHeader,"Nf","Number of image components in frame"); // 3 YCbCr
 
-                    /* Check three image components
-                    components = newJpegItem(image,2,"component-parm",QString("Frame");
-                    for (i = 0; i < Nf; i++) {
-                       in >> parmU16;                           // Get sampling factor
-                       newJpegItem(frameHeader,2,"Nf",QString::number(parmU16),"Number of image components in frame");
-                    }*/
+                    /* Check three image components*/
+                    components = newJpegItem(frameHeader,"component-parm");
+                    for (int i = 1; i <= Nf; i++) {
+                       readJpegParm(8,components,QString("C%1").arg(i),"Component identifier");
+                       readJpegParm(4,components,QString("H%1&V%1").arg(i),"Horizontal&Vertical sampling factor");
+                       readJpegParm(8,components,QString("Tq%1").arg(i),"Quantization table destination selector");
+                    }
                     return;//break;
                 default:break;
             }
