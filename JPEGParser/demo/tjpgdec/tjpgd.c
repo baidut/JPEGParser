@@ -791,7 +791,7 @@ JRESULT jd_prepare (
 	jd->inbuf = seg = alloc_pool(jd, JD_SZBUF);		/* Allocate stream input buffer */
 	if (!seg) return JDR_MEM1;
 
-	if (jd->infunc(jd, seg, 2) != 2) return JDR_INP;/* Check SOI marker */
+    if (jd->infunc(jd, seg, 2) != 2) return JDR_INP;/* Check SOI marker */
 	if (LDB_WORD(seg) != 0xFFD8) return JDR_FMT1;	/* Err: SOI is not detected */
 	ofs = 2;
 
