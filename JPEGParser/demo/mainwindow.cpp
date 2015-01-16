@@ -14,70 +14,25 @@
 #include "ui_mainwindow.h"
 
 #include "jpegimage.h"
-
-QTreeWidgetItem* newJpegItem(QTreeWidgetItem* parent,int address,QString field,QString value){
+void newJpegParm(QTreeWidgetItem* parent,int address,QString field,QString value,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<value<<QString::number(address);
+    ls<<field<<"Parm"<<value<<infor<<QString("0x%1").arg(address,0,16);//16进制,占2位,空位补0 QString::number(address,16);
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
+    parent->addChild(item);
+}
+void newJpegMarker(QTreeWidgetItem* parent,int address,QString field,QString infor=QString("")){
+    QStringList ls;
+    ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(address,0,16);//QString::number(address);
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
+    parent->addChild(item);
+}
+QTreeWidgetItem* newJpegItem(QTreeWidgetItem* parent,int address,QString field,QString infor=QString("")){
+    QStringList ls;
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(address,0,16);//QString::number(address);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
 }
-
-/*
-typedef struct{
-    QTreeWidgetItem *Tables;
-    QTreeWidgetItem *frameHeader;
-}JpegFrameTree;
-
-typedef struct{
-    QTreeWidgetItem *SOI;
-    JpegFrameTree   *frame;
-    QTreeWidgetItem *EOI;
-
-    // select corresponding item according to address(when mouse over or clicked)
-    void selectItem(int address){
-        if(address<2){
-            return SOI;
-        }
-        else if(address>){
-            return EOI;
-        }
-        else return
-    }
-}JpegImageTree;
-
-
-// 解析时构建节点
-QStringList ls = QString("Image");
-Node* Tree = new Node(ui->treeWidget,ls,0);
-Node* soi = new Node(Tree,ls,0);
-// 触发选中
-
-
-// 要实现每个item都有addr与其匹配，一种方式是建表查表
-// 这里采用另一种方法，封装树操作
-typedef struct{
-    int addr;
-    QTreeWidgetItem *item;
-    QList<Node*>     child;
-    // 根据父节点和内容构造
-    Node(Node* parent,QStringList content,int addr){
-        this->item = new QTreeWidgetItem(parent->item,content);
-        this->addr = addr;
-
-        parent->item->addChild(child->item);//parent->append(this);
-        parent->child.append(this);
-    }
-    void selectAddress(int addr){
-        int N = item->childCount();
-        if(N==0)item->setSelected(true);
-        else{
-            for(int i=0;i<N;i++){
-                if()
-            }
-        }
-    }
-}Node;*/
 void MainWindow::setSelection(int address){
     /*int N = Tree->item->childCount();
     Node* node = Tree;
@@ -132,39 +87,68 @@ void MainWindow::open()
     QString fileName = QFileDialog::getOpenFileName(this);
     if (!fileName.isEmpty()) {
         loadFile(fileName);
-        qDebug("Test begin!");
-        JpegImage* jpg = new JpegImage();
-        QByteArray ba = fileName.toLatin1();
-        char *mm = ba.data();
-        jpg->open(mm);
-        qDebug("Test end!");
 
-        /* 放在ui里设置 QStringList headers;
-        headers << "Field" << "Value" << "Addr" << "Infor";
-        ui->treeWidget->setColumnCount(headers.length());
-        ui->treeWidget->setHeaderLabels(headers);*/
-
-        /*QList<QTreeWidgetItem *> items;
-        for (int i = 0; i < 3; ++i)
-            items.append(new QTreeWidgetItem((QTreeWidget*)0, QStringList(QString("item: %1").arg(i))));
-        ui->treeWidget->insertTopLevelItems(0, items);*/
         QStringList ls;
-        ls << "Image" << QString("%1 X %2 ,XXX bytes")
-              .arg(jpg->getWidth())
-              .arg(jpg->getHeight());
+        ls << "Image" ;//<< QString("%1 X %2 ,XXX bytes")
+              //.arg(jpg->getWidth())
+              //.arg(jpg->getHeight());
         image = new QTreeWidgetItem(ui->treeWidget,ls);
 
-        /*image = newJpegItem(ui->treeWidget,0,"Image",QString("%1 X %2 ,XXX bytes")
-                            .arg(jpg->getWidth())
-                            .arg(jpg->getHeight()));
-                            //ui->treeWidget 不能直接传入
-        */
-        //imageItem1->setIcon(0,QIcon("xxx.png"));
-        QTreeWidgetItem *width = newJpegItem(image,0,"Width",QString("%1 pixels").arg(jpg->getWidth()));
-        QTreeWidgetItem *height = newJpegItem(image,0,"Height",QString("%1 pixels").arg(jpg->getHeight()));
-        QTreeWidgetItem *soi = newJpegItem(image,0,"SOI",QString("0XFFD8 Start Of Image"));
-        QTreeWidgetItem *eoi = newJpegItem(image,0,"EOI",QString("0XFFD9 End Of Image"));
+        QFile file(fileName);
+        file.open(QIODevice::ReadOnly);
+        QDataStream in(&file);    // read the data serialized from the file
 
+        quint16 marker; //QDataStream & QDataStream::operator>>(quint32 & i)
+        in >> marker;  // extract a marker
+        qDebug("marker:%x",marker);
+
+        if(marker!=0XFFD8){ //&&marker!=0XD8FF
+            QMessageBox::warning(this,tr("Err"),tr("Err: SOI is not detected!\n"));
+            return;
+        }
+        newJpegMarker(image,0,"SOI",QString("Start Of Image"));
+        QTreeWidgetItem * frame;
+        QTreeWidgetItem * frameHeader;
+
+        int offset = 2;
+        for (;;) {
+            quint32 parmU32;
+            quint16 parmU16;
+            quint8  parmU8;
+            qint32  parmS32;
+            qint16  parmS16;
+            quint16 Nf;
+
+            in >> marker;
+            switch (marker & 0xFF) {
+                case 0xC0:  /* SOF0 (baseline JPEG) */
+                       /* Load segment data */
+                    frame = newJpegItem(image,offset,"Frame");
+                    frameHeader = newJpegItem(frame,offset,"Frame Header",QString("Frame"));
+                    newJpegMarker(frameHeader,offset,"SOF",QString("Start Of Frame"));
+                    in >> parmU16;
+                    newJpegParm(frameHeader,offset+=2,"Lf",QString::number(parmU16),"Frame header length");
+                    in >> parmU8;
+                    newJpegParm(frameHeader,offset++,"P",QString::number(parmU8),"Sample precision");
+                    in >> parmU16;
+                    newJpegParm(frameHeader,offset+=2,"Y",QString::number(parmU16),"Height,Number of lines");
+                    in >> parmU16;
+                    newJpegParm(frameHeader,offset+=2,"X",QString::number(parmU16),"Width,Number of samples per line");
+                    in >> parmU8;
+                    Nf = parmU8;
+                    newJpegParm(frameHeader,offset++,"Nf",QString::number(parmU8),"Number of image components in frame"); // 3 YCbCr
+
+                    /* Check three image components
+                    components = newJpegItem(image,2,"component-parm",QString("Frame");
+                    for (i = 0; i < Nf; i++) {
+                       in >> parmU16;                           // Get sampling factor
+                       newJpegItem(frameHeader,2,"Nf",QString::number(parmU16),"Number of image components in frame");
+                    }*/
+                    return;//break;
+                default:offset+=2;break;
+            }
+
+        }
         connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
     }
 }
