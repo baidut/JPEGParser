@@ -51,7 +51,7 @@ void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString inf
 }
 QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset,0,16);
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset-2,0,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
@@ -99,7 +99,7 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
         ui->HexEdit->gotoSelection(startAddr,endAddr);
     }
     else{
-        qDebug("end not found!");
+        qDebug("end not found!");// 到结束的地址
     }
 }
 
@@ -231,6 +231,38 @@ void MainWindow::open()
                         }while(offset<=start+Lq);
                     }
                     break;
+                case 0xFFC4: /* DHT */
+                    {
+                    QTreeWidgetItem * parent;
+                    QTreeWidgetItem * DHT;
+                    QTreeWidgetItem * assignment;
+                    quint16 Lh;
+                    quint32 start;
+                    quint8 L[16];
+                    parent = (scan)? scan:frame;
+                    DHT = newJpegItem(parent,"Huffman table-specification");
+                    newJpegMarker(DHT,"DHT",QString("Define Huffman table"));
+                    start = offset;// 注意头部包含Lh所以要放在前面
+                    Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
+                    do{
+                        // 创建表，同时输出
+                        readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
+                        for(int i=1;i<16;i++){
+                            L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
+                        }
+                        assignment = newJpegItem(DHT,"Symbol-length assignment");
+                        for(int i=1;i<16;i++){
+                           for(int j=1;j<L[i];j++){
+                               // TODO 大量重复说明问题
+                               readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
+                           }
+                        }
+                    }while(offset<=start+Lh);
+                    }
+                    break;
+                case 0xFFD9:
+                    newJpegMarker(image,"EOI",QString("End of image"));
+                    return;
                 default:break;
             }
         }

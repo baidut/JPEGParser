@@ -75,3 +75,5 @@ QTextEdit中滚动条定位
 //滚动条滑块置底
     QScrollBar *scrollbar = ui->textEdit->verticalScrollBar();
     scrollbar->setSliderPosition(scrollbar->maximum());
+
+TODO: 双击折叠树
