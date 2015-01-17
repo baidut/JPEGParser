@@ -51,6 +51,7 @@ Parameter*	PARM*
 
 Qt数字转字符串
 QString::number(num);
+Qt字符串转数字
 
 TODO：
 tab、左右键可以切换到下一个块
@@ -65,3 +66,12 @@ tab、左右键可以切换到下一个块
     最简单的方式
     qDebug()<<s;
     
+获取文本text()
+
+
+QTextEdit自动滚动
+
+QTextEdit中滚动条定位
+//滚动条滑块置底
+    QScrollBar *scrollbar = ui->textEdit->verticalScrollBar();
+    scrollbar->setSliderPosition(scrollbar->maximum());

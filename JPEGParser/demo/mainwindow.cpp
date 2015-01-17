@@ -14,6 +14,7 @@
 #include "ui_mainwindow.h"
 
 #include "jpegimage.h"
+//#include <QScrollBar>
 
 // TODO 添加定位
 // 为了更加方便，将文件指针和文件流入口作为类成员
@@ -22,7 +23,7 @@ quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,
 
     QStringList ls;
     quint8 parmU8;
-    quint16 parmU16; // 不能处理负数的情况
+    quint16 parmU16; // 不能处理负数的情况,如果读特殊参数就特殊处理 readJpegParm16 readJpegParm8 readJpegParm4
     quint32 parm;
 
     switch(size){
@@ -50,7 +51,7 @@ void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString inf
 }
 QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset-2,0,16);//注意此时marker已经读入
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset,0,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
@@ -67,21 +68,39 @@ void MainWindow::setSelection(int address){
         ui->treeWidget->setCurrentItem(image->child(2)); // 从0开始计
     }
 }
-
+// 通过父亲定位到树形结构的下一个兄弟
+//  下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
 void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
 #define COLUMN_OF_ADDR 4
     (void)column;// 暂不使用选中列信息;
-    // 通过父亲定位到树形结构的下一个兄弟
-    QTreeWidgetItem* parent = item->parent();
+    // 存在父节点前提下递归寻找下一个元素
     QString start = item->text(COLUMN_OF_ADDR);
-    QString end = parent->child(parent->indexOfChild(item)+1)->text(COLUMN_OF_ADDR);
-    // TODO 下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
-    bool ok = true;
-    int startAddr = start.toInt(&ok,16);
-    Q_ASSERT(ok);
-    int endAddr = end.toInt(&ok,16); // when base = 0, If the string begins with "0x", base 16 is used;
-    Q_ASSERT(ok);
-    ui->HexEdit->setSelection(startAddr,endAddr);
+    QString end = "";
+    int idx;
+    QTreeWidgetItem* parent;
+    QTreeWidgetItem* child = item; // 注意不能对item进行修改 最好添加const保证指针指向的元素不被修改
+    while( (parent = child->parent()) ){
+        idx = parent->indexOfChild(child)+1;
+        if(parent->childCount()!=idx){
+            end = parent->child(idx)->text(COLUMN_OF_ADDR);
+            break;
+        }
+        else{
+            child = parent; // 指针操作
+        }
+    }
+    if(end!=""){
+        bool ok = true;
+        quint32 startAddr = start.toInt(&ok,16);
+        Q_ASSERT(ok);
+        quint32 endAddr = end.toInt(&ok,16); // when base = 0, If the string begins with "0x", base 16 is used;
+        Q_ASSERT(ok);
+        // 不仅要select，还要调到可见的地方 修改了HexEdit源码
+        ui->HexEdit->setSelection(startAddr,endAddr);
+    }
+    else{
+        qDebug("end not found!");
+    }
 }
 
 /*****************************************************************************/
