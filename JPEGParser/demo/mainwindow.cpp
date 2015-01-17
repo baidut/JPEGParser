@@ -50,7 +50,7 @@ void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString inf
 }
 QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset,0,16);//QString::number(address);
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset-2,0,16);//注意此时marker已经读入
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
@@ -137,25 +137,26 @@ void MainWindow::open()
         in = new QDataStream(&file);// QDataStream in(&file);    // read the data serialized from the file
         offset = 0;
 
+
+        QTreeWidgetItem * frame = NULL;
+        QTreeWidgetItem * frameHeader = NULL;
+        QTreeWidgetItem * components = NULL;
+
+        QTreeWidgetItem * scan = NULL;
+        QTreeWidgetItem * scanHeader = NULL;
+
         if(readJpegMarker()!=0XFFD8){ //&&marker!=0XD8FF
             QMessageBox::warning(this,tr("Err"),tr("Err: SOI is not detected!\n"));
             return;
         }
         newJpegMarker(image,"SOI",QString("Start Of Image"));
-        QTreeWidgetItem * frame = NULL;
-        QTreeWidgetItem * frameHeader = NULL;
-        QTreeWidgetItem * components = NULL;
-
-        QTreeWidgetItem * scan;
-        QTreeWidgetItem * scanHeader = NULL;
+        frame = newJpegItem(image,"Frame");
 
         for (;;) {
             //quint16 Lf,Y,X;
             quint8  Nf;
             switch (readJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
                 case 0xFFC0:  /* SOF0 (baseline JPEG) */
-                       /* Load segment data */
-                    frame = newJpegItem(image,"Frame");
                     frameHeader = newJpegItem(frame,"Frame Header");
                     newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
                     readJpegParm(16,frameHeader,"Lf","Frame header length");
@@ -171,13 +172,12 @@ void MainWindow::open()
                        readJpegParm(4,components,QString("H%1&V%1").arg(i),"Horizontal&Vertical sampling factor");
                        readJpegParm(8,components,QString("Tq%1").arg(i),"Quantization table destination selector");
                     }
+                    scan = newJpegItem(frame,"Scan");
                     break;
 
                 case 0xFFDA:  /* SOS */
-                    /* Load segment data */
                     // 标准情况只有一个Scan
-                    Q_ASSERT(frame);
-                    scan = newJpegItem(frame,"Scan");
+                    Q_ASSERT(scan);
                     scanHeader = newJpegItem(scan,"Scan Header");
                     newJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
                     readJpegParm(16,scanHeader,"Ls","Scan header length");
@@ -192,6 +192,26 @@ void MainWindow::open()
                     readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
                     readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
                     return;
+                case 0xFFDB: /* DQT */
+                    {
+                        QTreeWidgetItem * parent;
+                        QTreeWidgetItem * DQT;
+                        quint16 Lq;
+                        quint32 start;
+                        parent = (scan)? scan:frame;
+                        DQT = newJpegItem(parent,"Quantization table-specification");
+                        newJpegMarker(DQT,"DQT",QString("Define quantization table"));
+                        Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
+                        start = offset;
+                        do{
+                            // 创建表，同时输出
+                            readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
+                            for(int i=0;i<64;i++){
+                                readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
+                            }
+                        }while(offset<=start+Lq);
+                    }
+                    break;
                 default:break;
             }
         }
