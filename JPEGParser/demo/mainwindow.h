@@ -70,14 +70,19 @@ private:
     QLabel *lbOverwriteMode, *lbOverwriteModeName;
     QLabel *lbSize, *lbSizeName;
 
-    QTreeWidgetItem *image;
+    QTreeWidgetItem *   image;
+    QTreeWidgetItem *   frame;
+    QTreeWidgetItem *   scan;
     quint32 offset;
     QDataStream *in;
 
     /*inline*/ quint32          readJpegParm    (int size,QTreeWidgetItem* parent,QString field,QString infor);// 参数为负数的情形不能处理
                quint16          readJpegMarker  (){quint16 marker;Q_ASSERT(in);(*in)>>marker;offset+=2;return marker;}
+               void             readJpegBytes   (int size,QTreeWidgetItem* parent,QString field,QString infor);
+               void             readJpegTables  ();
     /*inline*/ void             newJpegMarker   (         QTreeWidgetItem* parent,QString field,QString infor);
     /*inline*/ QTreeWidgetItem* newJpegItem     (         QTreeWidgetItem* parent,QString field,QString infor);
+
 };
 
 #endif

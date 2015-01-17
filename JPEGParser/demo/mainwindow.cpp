@@ -42,7 +42,16 @@ quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,
 
     return parm;
 }
-
+void MainWindow::readJpegBytes(int size,QTreeWidgetItem* parent,QString field,QString infor=QString("")){
+    char s[100];
+    QStringList ls;
+    // TODO 不一定成功读入
+    Q_ASSERT(size==in->readRawData(s,size));
+    ls<<field<<"Comment"<<QString(s)<<infor<<QString("0x%1").arg(offset,0,16);
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
+    parent->addChild(item);
+    offset+=size;
+}
 void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
     ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(offset-2,0,16);//注意此时marker已经读入
@@ -51,10 +60,93 @@ void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString inf
 }
 QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset-2,0,16);
+    ls<<field<<""<<""<<infor<<QString("0x%1").arg(offset,0,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     return item;
+}
+void MainWindow::readJpegTables(){
+    QTreeWidgetItem * parent= (scan)? scan:frame;
+    quint32 start;
+    QTreeWidgetItem * item =NULL;
+    quint16 marker;
+
+    switch (marker = readJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
+        case 0xFFDB: /* DQT */
+            {
+                QTreeWidgetItem * DQT;
+                quint16 Lq;
+
+                DQT = newJpegItem(parent,"Quantization table-specification");
+                newJpegMarker(DQT,"DQT",QString("Define quantization table"));
+                Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
+                start = offset;
+                do{
+                    // 创建表，同时输出
+                    readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
+                    for(int i=0;i<64;i++){
+                        readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
+                    }
+                }while(offset<=start+Lq);
+            }
+            break;
+        case 0xFFC4: /* DHT */
+            {
+                QTreeWidgetItem * DHT;
+                QTreeWidgetItem * assignment;
+                quint16 Lh;
+                quint8 L[16];
+
+                DHT = newJpegItem(parent,"Huffman table-specification");
+                newJpegMarker(DHT,"DHT",QString("Define Huffman table"));
+                start = offset;// 注意头部包含Lh所以要放在前面
+                Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
+                do{
+                    // 创建表，同时输出
+                    readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
+                    for(int i=1;i<16;i++){
+                        L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
+                    }
+                    assignment = newJpegItem(DHT,"Symbol-length assignment");
+                    for(int i=1;i<16;i++){
+                       for(int j=1;j<L[i];j++){
+                           // TODO 大量重复说明问题
+                           readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
+                       }
+                    }
+                }while(offset<=start+Lh);
+            }
+            break;
+        case 0xFFDD:
+            item = newJpegItem(parent,"Restart interval definition");
+            newJpegMarker(item,"DRI",QString("Define restart interval"));
+            readJpegParm(16,item,"Lr","Define restart interval segment length");
+            readJpegParm(16,item,"Ri","Restart interval");
+            break;
+        case 0xFFFE:
+            {
+            item = newJpegItem(parent,"Comment");
+            newJpegMarker(item,"COM",QString("Comment"));
+            quint16 L = readJpegParm(16,item,"Lc","Comment segment length");
+            readJpegBytes(L-2,item,"Cmi(i=1~L-2)","Comment byte");
+            break;
+            }
+        case 0xFFCC: /* DAC Define arithmetic coding conditioning(s) */
+        //case 0xFFE0:
+            break;
+        default:
+        if(marker>=0xFFE0&&marker<=0xFFEF){ // APP Application data syntax
+            item = newJpegItem(parent,"Application data");
+            newJpegMarker(item,"APPn",QString("Application data"));
+            quint16 L = readJpegParm(16,item,"Lp","Application data segment length");
+            readJpegBytes(L-2,item,"Api(i=1~L-2)","Application data byte");
+        }
+        else{//放回
+            (*in) << marker;
+            offset-=2;
+        }
+        break;
+    }
 }
 void MainWindow::setSelection(int address){
     /*int N = Tree->item->childCount();
@@ -145,6 +237,13 @@ void MainWindow::open()
     if (!fileName.isEmpty()) {
         loadFile(fileName);
 
+
+        QTreeWidgetItem * frameHeader = NULL;
+        QTreeWidgetItem * components = NULL;
+        QTreeWidgetItem * scanHeader = NULL;
+        quint8  Nf;
+
+        image = frame = scan = NULL;
         QStringList ls;
         ls << "Image" ;//<< QString("%1 X %2 ,XXX bytes")
               //.arg(jpg->getWidth())
@@ -156,116 +255,66 @@ void MainWindow::open()
         in = new QDataStream(&file);// QDataStream in(&file);    // read the data serialized from the file
         offset = 0;
 
-
-        QTreeWidgetItem * frame = NULL;
-        QTreeWidgetItem * frameHeader = NULL;
-        QTreeWidgetItem * components = NULL;
-
-        QTreeWidgetItem * scan = NULL;
-        QTreeWidgetItem * scanHeader = NULL;
-
         if(readJpegMarker()!=0XFFD8){ //&&marker!=0XD8FF
             QMessageBox::warning(this,tr("Err"),tr("Err: SOI is not detected!\n"));
             return;
         }
         newJpegMarker(image,"SOI",QString("Start Of Image"));
+
         frame = newJpegItem(image,"Frame");
+        readJpegTables();
 
+        frameHeader = newJpegItem(frame,"Frame Header");
+        readJpegMarker();/*
+        if(readJpegMarker()!=0xFFC0){ // SOF0 (baseline JPEG)
+            QMessageBox::warning(this,tr("Err"),tr("Err: Only support baseline JPEG!\n"));
+            return;
+        }*/
+        newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
+        readJpegParm(16,frameHeader,"Lf","Frame header length");
+        readJpegParm(8,frameHeader,"P","Sample precision");
+        readJpegParm(16,frameHeader,"Y","Height,Number of lines");
+        readJpegParm(16,frameHeader,"X","Width,Number of samples per line");
+        Nf = readJpegParm(8,frameHeader,"Nf","Number of image components in frame"); // 3 YCbCr
+
+        /* Check three image components*/
+        components = newJpegItem(frameHeader,"component-parm");
+        for (int i = 1; i <= Nf; i++) {
+           readJpegParm(8,components,QString("C%1").arg(i),"Component identifier");
+           readJpegParm(4,components,QString("H%1&V%1").arg(i),"Horizontal&Vertical sampling factor");
+           readJpegParm(8,components,QString("Tq%1").arg(i),"Quantization table destination selector");
+        }
+
+        scan = newJpegItem(frame,"Scan");
+        readJpegTables();
+
+        scanHeader = newJpegItem(scan,"Scan Header");
+        readJpegMarker();/*
+        if(readJpegMarker()!=0xFFDA){ // SOF0 (baseline JPEG)
+            QMessageBox::warning(this,tr("Err"),tr("Err: scan!\n"));
+            return;
+        }*/
+        newJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
+        readJpegParm(16,scanHeader,"Ls","Scan header length");
+        readJpegParm(8,scanHeader,"Ns","Number of image components in scan");
+        components = newJpegItem(scanHeader,"component-parm");
+        for (int i = 1; i <= Nf; i++) {
+           readJpegParm(8,components,QString("Cs%1").arg(i),"Scan component selector");
+           readJpegParm(4,components,QString("Td%1&Ta%1").arg(i),"DC&AC entropy coding table destination selector ");
+        }
+        readJpegParm(8,scanHeader,"Ss","Start of spectral or predictor selection");
+        readJpegParm(8,scanHeader,"Se","End of spectral selection");
+        readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
+        readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
+        /*
         for (;;) {
-            //quint16 Lf,Y,X;
-            quint8  Nf;
-            switch (readJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
-                case 0xFFC0:  /* SOF0 (baseline JPEG) */
-                    frameHeader = newJpegItem(frame,"Frame Header");
-                    newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
-                    readJpegParm(16,frameHeader,"Lf","Frame header length");
-                    readJpegParm(8,frameHeader,"P","Sample precision");
-                    readJpegParm(16,frameHeader,"Y","Height,Number of lines");
-                    readJpegParm(16,frameHeader,"X","Width,Number of samples per line");
-                    Nf = readJpegParm(8,frameHeader,"Nf","Number of image components in frame"); // 3 YCbCr
-
-                    /* Check three image components*/
-                    components = newJpegItem(frameHeader,"component-parm");
-                    for (int i = 1; i <= Nf; i++) {
-                       readJpegParm(8,components,QString("C%1").arg(i),"Component identifier");
-                       readJpegParm(4,components,QString("H%1&V%1").arg(i),"Horizontal&Vertical sampling factor");
-                       readJpegParm(8,components,QString("Tq%1").arg(i),"Quantization table destination selector");
-                    }
-                    scan = newJpegItem(frame,"Scan");
-                    break;
-
-                case 0xFFDA:  /* SOS */
-                    // 标准情况只有一个Scan
-                    Q_ASSERT(scan);
-                    scanHeader = newJpegItem(scan,"Scan Header");
-                    newJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
-                    readJpegParm(16,scanHeader,"Ls","Scan header length");
-                    readJpegParm(8,scanHeader,"Ns","Number of image components in scan");
-                    components = newJpegItem(scanHeader,"component-parm");
-                    for (int i = 1; i <= Nf; i++) {
-                       readJpegParm(8,components,QString("Cs%1").arg(i),"Scan component selector");
-                       readJpegParm(4,components,QString("Td%1&Ta%1").arg(i),"DC&AC entropy coding table destination selector ");
-                    }
-                    readJpegParm(8,scanHeader,"Ss","Start of spectral or predictor selection");
-                    readJpegParm(8,scanHeader,"Se","End of spectral selection");
-                    readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
-                    readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
-                    return;
-                case 0xFFDB: /* DQT */
-                    {
-                        QTreeWidgetItem * parent;
-                        QTreeWidgetItem * DQT;
-                        quint16 Lq;
-                        quint32 start;
-                        parent = (scan)? scan:frame;
-                        DQT = newJpegItem(parent,"Quantization table-specification");
-                        newJpegMarker(DQT,"DQT",QString("Define quantization table"));
-                        Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
-                        start = offset;
-                        do{
-                            // 创建表，同时输出
-                            readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
-                            for(int i=0;i<64;i++){
-                                readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
-                            }
-                        }while(offset<=start+Lq);
-                    }
-                    break;
-                case 0xFFC4: /* DHT */
-                    {
-                    QTreeWidgetItem * parent;
-                    QTreeWidgetItem * DHT;
-                    QTreeWidgetItem * assignment;
-                    quint16 Lh;
-                    quint32 start;
-                    quint8 L[16];
-                    parent = (scan)? scan:frame;
-                    DHT = newJpegItem(parent,"Huffman table-specification");
-                    newJpegMarker(DHT,"DHT",QString("Define Huffman table"));
-                    start = offset;// 注意头部包含Lh所以要放在前面
-                    Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
-                    do{
-                        // 创建表，同时输出
-                        readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
-                        for(int i=1;i<16;i++){
-                            L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
-                        }
-                        assignment = newJpegItem(DHT,"Symbol-length assignment");
-                        for(int i=1;i<16;i++){
-                           for(int j=1;j<L[i];j++){
-                               // TODO 大量重复说明问题
-                               readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
-                           }
-                        }
-                    }while(offset<=start+Lh);
-                    }
-                    break;
+            switch (readJpegMarker()) {
                 case 0xFFD9:
                     newJpegMarker(image,"EOI",QString("End of image"));
                     return;
                 default:break;
             }
-        }
+        }*/
         connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
     }
 }
