@@ -58,11 +58,11 @@ quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,
     return parm;
 }
 void MainWindow::readJpegBytes(int size,QTreeWidgetItem* parent,QString field,QString infor=QString("")){
-    char s[100];
+    char s[500]; // 数组有溢出的危险 31，181
     QStringList ls;
     // TODO 不一定成功读入
     Q_ASSERT(size==in->readRawData(s,size));
-    ls<<field<<"Data segment"<<QString(s)<<infor<<QString("0x%1").arg(offset,0,16);
+    ls<<field<<"Data segment"<<QString(s)<<infor<<QString("0x%1").arg(offset,0,16); // QString(s) 太长不显示
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     offset+=size;
@@ -86,6 +86,7 @@ void MainWindow::readJpegTables(){
     quint32 start;
     QTreeWidgetItem * item =NULL;
     quint16 marker;
+    quint16 L;
 
     for(;;){ // 可能有多个数据段
         switch (marker = nextJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
@@ -108,31 +109,31 @@ void MainWindow::readJpegTables(){
                 }// 多个DQT的情形
                 break;
             case 0xFFC4: /* DHT */
-                {
-                    QTreeWidgetItem * DHT;
-                    QTreeWidgetItem * assignment;
-                    quint16 Lh;
-                    quint8 L[16];
-
-                    DHT = newJpegItem(parent,"Huffman table-specification");
-                    readJpegMarker(DHT,"DHT",QString("Define Huffman table"));
-                    start = offset;// 注意头部包含Lh所以要放在前面
-                    Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
-                    do{
-                        // 创建表，同时输出
-                        readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
-                        for(int i=1;i<16;i++){
-                            L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
-                        }
-                        assignment = newJpegItem(DHT,"Symbol-length assignment");
-                        for(int i=1;i<16;i++){
-                           for(int j=1;j<L[i];j++){
-                               // TODO 大量重复说明问题
-                               readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
-                           }
-                        }
-                    }while(offset<=start+Lh);
-                }
+                item = newJpegItem(parent,"Huffman table-specification");
+                readJpegMarker(item,"DHT",QString("Define Huffman table"));
+                start = offset;// 注意头部包含Lh所以要放在前面
+                L = readJpegParm(16,item,"Lh","Huffman table definition length");
+                qDebug("there");
+                readJpegBytes(L-2,item,"Huffman data segment");
+                qDebug("no");
+                /*QTreeWidgetItem * DHT;
+                QTreeWidgetItem * assignment;
+                quint16 Lh;
+                quint8 L[16];
+                  do{
+                    // 创建表，同时输出
+                    readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
+                    for(int i=1;i<16;i++){
+                        L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
+                    }
+                    assignment = newJpegItem(DHT,"Symbol-length assignment");
+                    for(int i=1;i<16;i++){
+                       for(int j=1;j<L[i];j++){
+                           // TODO 大量重复说明问题
+                           readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
+                       }
+                    }
+                }while(offset<start+Lh);*/
                 break;
             case 0xFFDD:
                 item = newJpegItem(parent,"Restart interval definition");
@@ -144,7 +145,7 @@ void MainWindow::readJpegTables(){
                 {
                 item = newJpegItem(parent,"Comment");
                 readJpegMarker(item,"COM",QString("Comment"));
-                quint16 L = readJpegParm(16,item,"Lc","Comment segment length");
+                L = readJpegParm(16,item,"Lc","Comment segment length");
                 readJpegBytes(L-2,item,"Cmi(i=1~L-2)","Comment byte");
                 break;
                 }
