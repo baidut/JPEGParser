@@ -75,12 +75,15 @@ private:
     QTreeWidgetItem *   scan;
     quint32 offset;
     QDataStream *in;
-
+    //QByteArray buffer;
+    //QDataStream* remainder;
+    quint16 remainder;
+// read是读入，会引起offset，其他不会引发offset
     /*inline*/ quint32          readJpegParm    (int size,QTreeWidgetItem* parent,QString field,QString infor);// 参数为负数的情形不能处理
-               quint16          readJpegMarker  (){quint16 marker;Q_ASSERT(in);(*in)>>marker;offset+=2;return marker;}
+               quint16          nextJpegMarker  ();
                void             readJpegBytes   (int size,QTreeWidgetItem* parent,QString field,QString infor);
                void             readJpegTables  ();
-    /*inline*/ void             newJpegMarker   (         QTreeWidgetItem* parent,QString field,QString infor);
+    /*inline*/ void             readJpegMarker  (         QTreeWidgetItem* parent,QString field,QString infor);
     /*inline*/ QTreeWidgetItem* newJpegItem     (         QTreeWidgetItem* parent,QString field,QString infor);
 
 };

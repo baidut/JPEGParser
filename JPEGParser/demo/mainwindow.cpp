@@ -18,6 +18,21 @@
 
 // TODO 添加定位
 // 为了更加方便，将文件指针和文件流入口作为类成员
+
+// 并不读入marker（offset不移动）,只是存入变量marker中
+typedef  quint16 JpegMarker;
+JpegMarker MainWindow::nextJpegMarker(){
+    quint16 marker;
+    if(remainder){
+        marker = remainder;
+        remainder = 0;
+    }
+    else{
+        Q_ASSERT(in);
+        (*in)>>marker;
+    }
+    return marker;
+}
 quint32 MainWindow::readJpegParm(int size,QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     Q_ASSERT(in);
 
@@ -47,16 +62,17 @@ void MainWindow::readJpegBytes(int size,QTreeWidgetItem* parent,QString field,QS
     QStringList ls;
     // TODO 不一定成功读入
     Q_ASSERT(size==in->readRawData(s,size));
-    ls<<field<<"Comment"<<QString(s)<<infor<<QString("0x%1").arg(offset,0,16);
+    ls<<field<<"Data segment"<<QString(s)<<infor<<QString("0x%1").arg(offset,0,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
     offset+=size;
 }
-void MainWindow::newJpegMarker(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
+void MainWindow::readJpegMarker(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
-    ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(offset-2,0,16);//注意此时marker已经读入
+    ls<<field<<"Marker"<<""<<infor<<QString("0x%1").arg(offset,0,16);
     QTreeWidgetItem* item = new QTreeWidgetItem(parent,ls);
     parent->addChild(item);
+    offset+=2;// 这时候确定读入一个marker
 }
 QTreeWidgetItem* MainWindow::newJpegItem(QTreeWidgetItem* parent,QString field,QString infor=QString("")){
     QStringList ls;
@@ -71,81 +87,83 @@ void MainWindow::readJpegTables(){
     QTreeWidgetItem * item =NULL;
     quint16 marker;
 
-    switch (marker = readJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
-        case 0xFFDB: /* DQT */
-            {
-                QTreeWidgetItem * DQT;
-                quint16 Lq;
+    for(;;){ // 可能有多个数据段
+        switch (marker = nextJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
+            case 0xFFDB: /* DQT */
+                {
+                    QTreeWidgetItem * DQT;
+                    quint16 Lq;
 
-                DQT = newJpegItem(parent,"Quantization table-specification");
-                newJpegMarker(DQT,"DQT",QString("Define quantization table"));
-                Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
-                start = offset;
-                do{
-                    // 创建表，同时输出
-                    readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
-                    for(int i=0;i<64;i++){
-                        readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
-                    }
-                }while(offset<=start+Lq);
-            }
-            break;
-        case 0xFFC4: /* DHT */
-            {
-                QTreeWidgetItem * DHT;
-                QTreeWidgetItem * assignment;
-                quint16 Lh;
-                quint8 L[16];
+                    DQT = newJpegItem(parent,"Quantization table-specification");
+                    readJpegMarker(DQT,"DQT",QString("Define quantization table"));
+                    start = offset; // 包括Lq的长度
+                    Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
+                    do{
+                        // 创建表，同时输出
+                        readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
+                        for(int i=0;i<64;i++){
+                            readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
+                        }
+                    }while(offset<start+Lq);
+                }// 多个DQT的情形
+                break;
+            case 0xFFC4: /* DHT */
+                {
+                    QTreeWidgetItem * DHT;
+                    QTreeWidgetItem * assignment;
+                    quint16 Lh;
+                    quint8 L[16];
 
-                DHT = newJpegItem(parent,"Huffman table-specification");
-                newJpegMarker(DHT,"DHT",QString("Define Huffman table"));
-                start = offset;// 注意头部包含Lh所以要放在前面
-                Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
-                do{
-                    // 创建表，同时输出
-                    readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
-                    for(int i=1;i<16;i++){
-                        L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
-                    }
-                    assignment = newJpegItem(DHT,"Symbol-length assignment");
-                    for(int i=1;i<16;i++){
-                       for(int j=1;j<L[i];j++){
-                           // TODO 大量重复说明问题
-                           readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
-                       }
-                    }
-                }while(offset<=start+Lh);
-            }
-            break;
-        case 0xFFDD:
-            item = newJpegItem(parent,"Restart interval definition");
-            newJpegMarker(item,"DRI",QString("Define restart interval"));
-            readJpegParm(16,item,"Lr","Define restart interval segment length");
-            readJpegParm(16,item,"Ri","Restart interval");
-            break;
-        case 0xFFFE:
-            {
-            item = newJpegItem(parent,"Comment");
-            newJpegMarker(item,"COM",QString("Comment"));
-            quint16 L = readJpegParm(16,item,"Lc","Comment segment length");
-            readJpegBytes(L-2,item,"Cmi(i=1~L-2)","Comment byte");
-            break;
-            }
-        case 0xFFCC: /* DAC Define arithmetic coding conditioning(s) */
-        //case 0xFFE0:
-            break;
-        default:
-        if(marker>=0xFFE0&&marker<=0xFFEF){ // APP Application data syntax
-            item = newJpegItem(parent,"Application data");
-            newJpegMarker(item,"APPn",QString("Application data"));
-            quint16 L = readJpegParm(16,item,"Lp","Application data segment length");
-            readJpegBytes(L-2,item,"Api(i=1~L-2)","Application data byte");
+                    DHT = newJpegItem(parent,"Huffman table-specification");
+                    readJpegMarker(DHT,"DHT",QString("Define Huffman table"));
+                    start = offset;// 注意头部包含Lh所以要放在前面
+                    Lh = readJpegParm(16,DHT,"Lh","Huffman table definition length");
+                    do{
+                        // 创建表，同时输出
+                        readJpegParm(4,DHT,"Tc&Th","Quantization table element precision&destination identifier");
+                        for(int i=1;i<16;i++){
+                            L[i]=readJpegParm(8,DHT,QString("L(%1)").arg(i),"Number of Huffman codes of length i");
+                        }
+                        assignment = newJpegItem(DHT,"Symbol-length assignment");
+                        for(int i=1;i<16;i++){
+                           for(int j=1;j<L[i];j++){
+                               // TODO 大量重复说明问题
+                               readJpegParm(8,assignment,QString("V(%1,%2)").arg(i).arg(j),"Value associated with each Huffman code");
+                           }
+                        }
+                    }while(offset<=start+Lh);
+                }
+                break;
+            case 0xFFDD:
+                item = newJpegItem(parent,"Restart interval definition");
+                readJpegMarker(item,"DRI",QString("Define restart interval"));
+                readJpegParm(16,item,"Lr","Define restart interval segment length");
+                readJpegParm(16,item,"Ri","Restart interval");
+                break;
+            case 0xFFFE:
+                {
+                item = newJpegItem(parent,"Comment");
+                readJpegMarker(item,"COM",QString("Comment"));
+                quint16 L = readJpegParm(16,item,"Lc","Comment segment length");
+                readJpegBytes(L-2,item,"Cmi(i=1~L-2)","Comment byte");
+                break;
+                }
+            case 0xFFCC: /* DAC Define arithmetic coding conditioning(s) */
+            //case 0xFFE0:
+                break;
+            default:
+                if(marker>=0xFFE0&&marker<=0xFFEF){ // APP Application data syntax
+                    item = newJpegItem(parent,"Application data");
+                    readJpegMarker(item,"APPn",QString("Application data"));
+                    quint16 L = readJpegParm(16,item,"Lp","Application data segment length");
+                    readJpegBytes(L-2,item,"Api(i=1~L-2)","Application data byte");
+                }
+                else{//放回
+                    remainder = marker;//(*remainder)<<marker;
+                    return;
+                }
+                break;
         }
-        else{//放回
-            (*in) << marker;
-            offset-=2;
-        }
-        break;
     }
 }
 void MainWindow::setSelection(int address){
@@ -243,6 +261,8 @@ void MainWindow::open()
         QTreeWidgetItem * scanHeader = NULL;
         quint8  Nf;
 
+        //remainder = new QDataStream(&buffer,QIODevice::ReadWrite);
+        remainder = 0;
         image = frame = scan = NULL;
         QStringList ls;
         ls << "Image" ;//<< QString("%1 X %2 ,XXX bytes")
@@ -255,22 +275,22 @@ void MainWindow::open()
         in = new QDataStream(&file);// QDataStream in(&file);    // read the data serialized from the file
         offset = 0;
 
-        if(readJpegMarker()!=0XFFD8){ //&&marker!=0XD8FF
+        if(nextJpegMarker()!=0XFFD8){ //&&marker!=0XD8FF
             QMessageBox::warning(this,tr("Err"),tr("Err: SOI is not detected!\n"));
             return;
         }
-        newJpegMarker(image,"SOI",QString("Start Of Image"));
+        readJpegMarker(image,"SOI",QString("Start Of Image"));
 
         frame = newJpegItem(image,"Frame");
         readJpegTables();
 
         frameHeader = newJpegItem(frame,"Frame Header");
-        readJpegMarker();/*
+        nextJpegMarker();/*
         if(readJpegMarker()!=0xFFC0){ // SOF0 (baseline JPEG)
             QMessageBox::warning(this,tr("Err"),tr("Err: Only support baseline JPEG!\n"));
             return;
         }*/
-        newJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
+        readJpegMarker(frameHeader,"SOF",QString("Start Of Frame"));
         readJpegParm(16,frameHeader,"Lf","Frame header length");
         readJpegParm(8,frameHeader,"P","Sample precision");
         readJpegParm(16,frameHeader,"Y","Height,Number of lines");
@@ -289,12 +309,12 @@ void MainWindow::open()
         readJpegTables();
 
         scanHeader = newJpegItem(scan,"Scan Header");
-        readJpegMarker();/*
+        nextJpegMarker();/*
         if(readJpegMarker()!=0xFFDA){ // SOF0 (baseline JPEG)
             QMessageBox::warning(this,tr("Err"),tr("Err: scan!\n"));
             return;
         }*/
-        newJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
+        readJpegMarker(scanHeader,"SOS",QString("Start Of Scan"));
         readJpegParm(16,scanHeader,"Ls","Scan header length");
         readJpegParm(8,scanHeader,"Ns","Number of image components in scan");
         components = newJpegItem(scanHeader,"component-parm");
@@ -310,7 +330,7 @@ void MainWindow::open()
         for (;;) {
             switch (readJpegMarker()) {
                 case 0xFFD9:
-                    newJpegMarker(image,"EOI",QString("End of image"));
+                    readJpegMarker(image,"EOI",QString("End of image"));
                     return;
                 default:break;
             }
