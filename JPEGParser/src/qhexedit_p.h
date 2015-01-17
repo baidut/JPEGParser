@@ -28,6 +28,7 @@ public:
     void resetSelection(int pos);       // set selectionStart and selectionEnd to pos
     void resetSelection();              // set selectionEnd to selectionStart
     void setSelection(int pos);         // set min (if below init) or max (if greater init)
+    void gotoSelection(int start,int end);
     int getSelectionBegin() const;
     int getSelectionEnd() const;
 

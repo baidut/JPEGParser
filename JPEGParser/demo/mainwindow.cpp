@@ -96,7 +96,7 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
         quint32 endAddr = end.toInt(&ok,16); // when base = 0, If the string begins with "0x", base 16 is used;
         Q_ASSERT(ok);
         // 不仅要select，还要调到可见的地方 修改了HexEdit源码
-        ui->HexEdit->setSelection(startAddr,endAddr);
+        ui->HexEdit->gotoSelection(startAddr,endAddr);
     }
     else{
         qDebug("end not found!");

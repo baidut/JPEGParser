@@ -824,6 +824,13 @@ void QHexEditPrivate::setSelection(int pos)
         _selectionEnd = _selectionInit;
     }
 }
+void QHexEditPrivate::gotoSelection(int start,int end)
+{
+    resetSelection(start * 2);
+    setSelection(end * 2);
+    setCursorPos(end * 2);
+    ensureVisible();
+}
 
 int QHexEditPrivate::getSelectionBegin() const
 {

@@ -188,6 +188,9 @@ public:
     bool isReadOnly();
     const QFont &font() const;
     void setFont(const QFont &);
+    void gotoSelection(int start, int end){
+        qHexEdit_p->gotoSelection(start,end);
+    }
     /*! \endcond docNever */
 
 public slots:
