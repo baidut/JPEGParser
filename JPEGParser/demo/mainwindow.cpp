@@ -15,6 +15,7 @@
 
 #include "jpegimage.h"
 //#include <QScrollBar>
+#define COLUMN_OF_ADDR 4
 
 // TODO 添加定位
 // 为了更加方便，将文件指针和文件流入口作为类成员
@@ -113,9 +114,7 @@ void MainWindow::readJpegTables(){
                 readJpegMarker(item,"DHT",QString("Define Huffman table"));
                 start = offset;// 注意头部包含Lh所以要放在前面
                 L = readJpegParm(16,item,"Lh","Huffman table definition length");
-                qDebug("there");
                 readJpegBytes(L-2,item,"Huffman data segment");
-                qDebug("no");
                 /*QTreeWidgetItem * DHT;
                 QTreeWidgetItem * assignment;
                 quint16 Lh;
@@ -168,21 +167,32 @@ void MainWindow::readJpegTables(){
     }
 }
 void MainWindow::setSelection(int address){
+    // 采用读取的方式比较麻烦，建议建立QMap查询对应的地址
     /*int N = Tree->item->childCount();
     Node* node = Tree;
     for(int i=0;i<N;i++){
         if(node->item->child(i))
-    }*/
-
-    if(address<2){
-        ui->HexEdit->setSelection(0,2);
-        ui->treeWidget->setCurrentItem(image->child(2)); // 从0开始计
     }
+                start = node->child(i-1)->text(COLUMN_OF_ADDR).toInt(&ok,16);
+                Q_ASSERT(ok);
+                if(start)
+*/
+    QTreeWidgetItem* node = image;
+    int N = 0,i,end;
+    bool ok=true;
+    while( 0 != (N = (node->childCount()))){
+        for(i=1;i<N-1;i++){
+            end = node->child(i)->text(COLUMN_OF_ADDR).toInt(&ok,16);
+            Q_ASSERT(ok);
+            if(end>address)break;
+        }
+        node = node->child(i-1); // 只有一个孩子
+    }
+    ui->treeWidget->setCurrentItem(node);// 会触发setSelection
 }
 // 通过父亲定位到树形结构的下一个兄弟
 //  下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
 void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
-#define COLUMN_OF_ADDR 4
     (void)column;// 暂不使用选中列信息;
     // 存在父节点前提下递归寻找下一个元素
     QString start = item->text(COLUMN_OF_ADDR);
@@ -327,16 +337,16 @@ void MainWindow::open()
         readJpegParm(8,scanHeader,"Se","End of spectral selection");
         readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
         readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
-        /*
+
+        connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
         for (;;) {
-            switch (readJpegMarker()) {
+            switch (nextJpegMarker()) {
                 case 0xFFD9:
                     readJpegMarker(image,"EOI",QString("End of image"));
                     return;
                 default:break;
             }
-        }*/
-        connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
+        }
     }
 }
 
