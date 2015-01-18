@@ -75,4 +75,13 @@ QTextEdit中滚动条定位
     QScrollBar *scrollbar = ui->textEdit->verticalScrollBar();
     scrollbar->setSliderPosition(scrollbar->maximum());
 
-TODO: 双击折叠树
+QTreeWidget 复选框
+
+[Qt树形控件QTreeView使用1——节点的添加删除操作](http://blog.csdn.net/czyt1988/article/details/18996407)
+[Qt树形控件QTreeView使用2——复选框的设置](http://blog.csdn.net/czyt1988/article/details/19171727)
+
+
+QWT Qt绘图控件
+
+[qt超强绘图控件qwt - 安装及配置](http://blog.csdn.net/czyt1988/article/details/11999985)
+

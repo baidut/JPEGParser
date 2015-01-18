@@ -97,26 +97,24 @@ void MainWindow::readJpegTables(){
     QTreeWidgetItem * item =NULL;
     quint16 marker;
     quint16 L;
+    quint32 parm;
 
     for(;;){ // 可能有多个数据段
         switch (marker = nextJpegMarker()) { // & 0xFF 可以更高效的匹配，但这里不追求速度，故不做优化
             case 0xFFDB: /* DQT */
-                {
-                    QTreeWidgetItem * DQT;
-                    quint16 Lq;
-
-                    DQT = newJpegItem(parent,"Quantization table-specification");
-                    readJpegMarker(DQT,"DQT",QString("Define quantization table"));
-                    start = offset; // 包括Lq的长度
-                    Lq = readJpegParm(16,DQT,"Lq","Quantization table definition length");
-                    do{
-                        // 创建表，同时输出
-                        readJpegParm(4,DQT,"Pq&Tq","Quantization table element precision&destination identifier");
-                        for(int i=0;i<64;i++){
-                            readJpegParm(8,DQT,QString("Q%1").arg(i),"Quantization table element");
-                        }
-                    }while(offset<start+Lq);
-                }// 多个DQT的情形
+                item = newJpegItem(parent,"Quantization table-specification");
+                readJpegMarker(item,"DQT",QString("Define quantization table"));
+                start = offset; // 包括Lq的长度
+                L = readJpegParm(16,item,"Lq","Quantization table definition length");
+                do{
+                    // 创建表，同时输出
+                    parm = readJpegParm(4,item,"Pq&Tq","Quantization table element precision&destination identifier");
+                    parm = parm/16; // Pq
+                    for(int i=0;i<64;i++){
+                        readJpegParm((parm)?16:8,item,QString("Q%1").arg(i),"Quantization table element");
+                        // Pq定义了Qn的精度 占16位还是8位 Pq=1为16bit
+                    }
+                }while(offset<start+L);
                 break;
             case 0xFFC4: /* DHT */
                 item = newJpegItem(parent,"Huffman table-specification");
