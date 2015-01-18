@@ -181,6 +181,8 @@ void MainWindow::setSelection(int address){
     QTreeWidgetItem* node = image;
     int N = 0,i,startAddr,endAddr;
     bool ok=true;
+
+    if(ui->treeWidget->hasFocus())return; // 解决选中树节点触发的情况造成一选父节点，即跳到孩子节点的问题。
     while( 0 != (N = (node->childCount()))){
         for(i=1;i<N-1;i++){
             endAddr = node->child(i)->text(COLUMN_OF_ADDR).toInt(&ok,16);
@@ -189,10 +191,10 @@ void MainWindow::setSelection(int address){
         }
         node = node->child(i-1); // 只有一个孩子
     }
-    startAddr = node->text(COLUMN_OF_ADDR).toInt(&ok,16);
+    // 没用到startAddr = node->text(COLUMN_OF_ADDR).toInt(&ok,16);
     ui->treeWidget->expandItem(node->parent());//setItemExpanded(node,false);展开元素，显示其子元素
     ui->treeWidget->setItemSelected(node,true);
-    qDebug("setSelection %x ~ %x",startAddr,endAddr);
+    // qDebug("setSelection %x ~ %x",startAddr,endAddr);
     ui->treeWidget->setCurrentItem(node,0);//ui->treeWidget->setCurrentItem(node,0,QItemSelectionModel::Select);注明QItemSelectionModel::Select避免与多选模式冲突
     // ui->HexEdit->setHighlightedRange(startAddr,endAddr);
     //ui->HexEdit->gotoSelection(startAddr,endAddr);// 不能改变光标，否则当前地址再次改变。不改变光标则无法选中
@@ -201,7 +203,7 @@ void MainWindow::setSelection(int address){
 }
 // 通过父亲定位到树形结构的下一个兄弟
 //  下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
-void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
+void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) { // 改变光标地址
     (void)column;// 暂不使用选中列信息;
     // 存在父节点前提下递归寻找下一个元素
     QString start = item->text(COLUMN_OF_ADDR);
@@ -227,7 +229,6 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
         Q_ASSERT(ok);
         // 不仅要select，还要调到可见的地方 修改了HexEdit源码
         ui->HexEdit->gotoSelection(startAddr,endAddr);
-        //ui->HexEdit->setHighlighting(item->isSelected());// 如果没有激活就去除高亮
         // 不支持多种颜色高亮
         if(item->checkState(COLUMN_OF_FIELD)){ //item->isSelected()
             ui->HexEdit->setHighlightedRange(startAddr,endAddr);
@@ -235,9 +236,6 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
         else{
             ui->HexEdit->removeHighlightedRange(startAddr,endAddr);
         }
-        //ui->HexEdit->setHighlightingColor(item->isSelected()?HIGHLIGHTING_COLOR:ADDRESS_AREA_COLOR);
-        //ui->HexEdit->setHighlightedRange(startAddr,endAddr);// 并且高亮对应区域
-        qDebug("%x~%x",startAddr,endAddr);
     }
     else{
         qDebug("end not found!");// 到结束的地址

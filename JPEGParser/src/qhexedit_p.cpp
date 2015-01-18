@@ -834,6 +834,8 @@ void QHexEditPrivate::gotoSelection(int start,int end)
 {
     resetSelection(start * 2);
     setSelection(end * 2);
+    if(_cursorPosition/*cursorPos()*/>end*2||_cursorPosition<start*2)
+        setCursorPos(start * 2);
     // setCursorPos(start * 2);// setCursorPos(end * 2);
     ensureVisible();
 }
