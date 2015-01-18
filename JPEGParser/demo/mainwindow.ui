@@ -20,11 +20,8 @@
    <layout class="QGridLayout" name="gridLayout">
     <item row="1" column="0">
      <widget class="QTreeWidget" name="treeWidget">
-      <property name="selectionMode">
-       <enum>QAbstractItemView::MultiSelection</enum>
-      </property>
       <attribute name="headerHighlightSections">
-       <bool>true</bool>
+       <bool>false</bool>
       </attribute>
       <column>
        <property name="text">

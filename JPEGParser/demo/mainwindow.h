@@ -47,8 +47,8 @@ private slots:
     void showSearchDialog();
 
     void setSelection(int address);// 需要解析address所在的块，所以放在一起设置
-
     void on_treeWidget_itemClicked(QTreeWidgetItem *item, int column);
+    //void on_treeWidget_itemSelectionChanged();
 
 private:
     void init();
