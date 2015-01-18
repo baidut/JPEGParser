@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>GHexEditor</string>
+   <string>JPEGHexViewer</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="enabled">
@@ -94,6 +94,7 @@
     </property>
     <addaction name="action_About"/>
     <addaction name="actionAbout_Qt"/>
+    <addaction name="actionAbout_q_Hexedit2"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -252,6 +253,11 @@
    </property>
    <property name="toolTip">
     <string>Show the Dialog to select applications options</string>
+   </property>
+  </action>
+  <action name="actionAbout_q_Hexedit2">
+   <property name="text">
+    <string>About q&amp;Hexedit2</string>
    </property>
   </action>
  </widget>

@@ -50,6 +50,8 @@ private slots:
     void on_treeWidget_itemClicked(QTreeWidgetItem *item, int column);
     //void on_treeWidget_itemSelectionChanged();
 
+    void on_actionAbout_q_Hexedit2_triggered();
+
 private:
     void init();
     void connectActions();

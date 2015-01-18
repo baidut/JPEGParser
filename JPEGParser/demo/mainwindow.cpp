@@ -278,8 +278,13 @@ void MainWindow::closeEvent(QCloseEvent *)
 /*****************************************************************************/
 void MainWindow::about()
 {
-   QMessageBox::about(this, tr("About QHexEdit"),
-            tr("The QHexEdit example is a short Demo of the QHexEdit Widget."));
+   QMessageBox::about(this, tr("About JPEGHexViewer"),
+            tr("<h3>JPEGHexViewer</h3>"
+               "The JPEGHexViewer is a tool to help you figure out the syntax structure of JPEG<br>"
+               "It is written in C++, using QT framework.<hr>"
+               "Contact me: <u>yingzhenqiang@163.com</u><br>"
+               "View the source through: <br>"
+               "<a href='https://github.com/baidut/JPEGParser/'>https://github.com/baidut/JPEGParser/</a>"));
 }
 
 void MainWindow::open()
@@ -630,3 +635,11 @@ void MainWindow::writeSettings()
     settings.setValue("size", size());
 }
 
+
+void MainWindow::on_actionAbout_q_Hexedit2_triggered(){
+    QMessageBox::about(this, tr("About QHexEdit"),
+               tr("JPEGHexViewer includes code of the qhexedit2<hr>"
+                  "QHexEdit is a hex editor widget written in C++ for the Qt (Qt5) framework.<br>"
+                  "It is a simple editor for binary data, just like QPlainTextEdit is for text data. There are sip configuration files included, so it is easy to create bindings for PyQt and you can use this widget also in python.<br>"
+                  "For more information:<a href='https://code.google.com/p/qhexedit2/'>https://code.google.com/p/qhexedit2/</a>"));
+}
