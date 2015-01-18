@@ -85,3 +85,8 @@ QWT Qt绘图控件
 
 [qt超强绘图控件qwt - 安装及配置](http://blog.csdn.net/czyt1988/article/details/11999985)
 
+
+qt中怎么判断控制是否获取焦点？
+遍历,判断 hasFocus () 搜索
+或者使用 QWidget * QWidget::focusWidget () 获得最后一个获得光标的控件
+

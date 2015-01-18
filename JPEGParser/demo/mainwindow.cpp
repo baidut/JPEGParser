@@ -241,7 +241,11 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) { 
         qDebug("end not found!");// 到结束的地址
     }
 }
-
+void MainWindow::on_treeWidget_itemDoubleClicked(QTreeWidgetItem *item, int column) {
+// 双击节点合并
+    (void)column;
+    ui->treeWidget->collapseItem(item->parent());
+}
 /*****************************************************************************/
 /* Public methods */
 /*****************************************************************************/
