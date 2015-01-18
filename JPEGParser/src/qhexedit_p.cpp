@@ -267,6 +267,12 @@ void QHexEditPrivate::setHighlightedRange(int start, int end)
     update();
 }
 
+void QHexEditPrivate::removeHighlightedRange(int start, int end)
+{
+    _xData.setDataChanged(start, QByteArray(end - start, char(0)));
+    update();
+}
+
 void QHexEditPrivate::setHighlighting(bool mode)
 {
     _highlighting = mode;
@@ -828,7 +834,7 @@ void QHexEditPrivate::gotoSelection(int start,int end)
 {
     resetSelection(start * 2);
     setSelection(end * 2);
-    setCursorPos(end * 2);
+    setCursorPos(start * 2);// setCursorPos(end * 2);
     ensureVisible();
 }
 

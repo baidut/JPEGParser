@@ -15,7 +15,10 @@
 
 #include "jpegimage.h"
 //#include <QScrollBar>
-#define COLUMN_OF_ADDR 4
+#define COLUMN_OF_ADDR      4
+#define ADDRESS_AREA_COLOR  QColor(0xd4, 0xd4, 0xd4, 0xff)//setAddressAreaColor(QColor(0xd4, 0xd4, 0xd4, 0xff));
+#define HIGHLIGHTING_COLOR  QColor(0xff, 0xff, 0x99, 0xff)//setHighlightingColor(QColor(0xff, 0xff, 0x99, 0xff));
+#define SELECTION_COLOR     QColor(0x6d, 0x9e, 0xff, 0xff)//setSelectionColor(QColor(0x6d, 0x9e, 0xff, 0xff));
 
 // TODO 添加定位
 // 为了更加方便，将文件指针和文件流入口作为类成员
@@ -167,28 +170,27 @@ void MainWindow::readJpegTables(){
     }
 }
 void MainWindow::setSelection(int address){
+    // 选择区域时，光标可能是开始处或者结束处，取决于从后往前还是从前往后
+    // 当前地址改变触发 不能修改当前地址
     // 采用读取的方式比较麻烦，建议建立QMap查询对应的地址
-    /*int N = Tree->item->childCount();
-    Node* node = Tree;
-    for(int i=0;i<N;i++){
-        if(node->item->child(i))
-    }
-                start = node->child(i-1)->text(COLUMN_OF_ADDR).toInt(&ok,16);
-                Q_ASSERT(ok);
-                if(start)
-*/
+    /*
     QTreeWidgetItem* node = image;
-    int N = 0,i,end;
+    int N = 0,i,startAddr,endAddr;
     bool ok=true;
     while( 0 != (N = (node->childCount()))){
         for(i=1;i<N-1;i++){
-            end = node->child(i)->text(COLUMN_OF_ADDR).toInt(&ok,16);
+            endAddr = node->child(i)->text(COLUMN_OF_ADDR).toInt(&ok,16);
             Q_ASSERT(ok);
-            if(end>address)break;
+            if(endAddr>address)break;
         }
         node = node->child(i-1); // 只有一个孩子
     }
-    ui->treeWidget->setCurrentItem(node);// 会触发setSelection
+    startAddr = node->text(COLUMN_OF_ADDR).toInt(&ok,16);
+    ui->treeWidget->setCurrentItem(node);
+    //ui->HexEdit->gotoSelection(startAddr,endAddr);// 不能改变光标，否则当前地址再次改变。不改变光标则无法选中
+    // ui->HexEdit->gotoSelection(startAddr,endAddr);
+    //ui->treeWidget->itemClicked(node,0);// 相互触发需要能结束，否则当机
+    */
 }
 // 通过父亲定位到树形结构的下一个兄弟
 //  下一个兄弟找不到的情况，如果是最后一个孩子，则需要取父亲的下一个兄弟，还要递归找 // 如果直接存开始地址和结束地址则更方便
@@ -218,6 +220,17 @@ void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem *item, int column) {
         Q_ASSERT(ok);
         // 不仅要select，还要调到可见的地方 修改了HexEdit源码
         ui->HexEdit->gotoSelection(startAddr,endAddr);
+        //ui->HexEdit->setHighlighting(item->isSelected());// 如果没有激活就去除高亮
+        // 不支持多种颜色高亮
+        if(item->isSelected()){
+            ui->HexEdit->setHighlightedRange(startAddr,endAddr);
+        }
+        else{
+            ui->HexEdit->removeHighlightedRange(startAddr,endAddr);
+        }
+        //ui->HexEdit->setHighlightingColor(item->isSelected()?HIGHLIGHTING_COLOR:ADDRESS_AREA_COLOR);
+        //ui->HexEdit->setHighlightedRange(startAddr,endAddr);// 并且高亮对应区域
+        qDebug("%x~%x",startAddr,endAddr);
     }
     else{
         qDebug("end not found!");// 到结束的地址
