@@ -362,8 +362,7 @@ void MainWindow::open()
         }
         readJpegParm(8,scanHeader,"Ss","Start of spectral or predictor selection");
         readJpegParm(8,scanHeader,"Se","End of spectral selection");
-        readJpegParm(8,scanHeader,"Ah","Successive approximation bit position high");
-        readJpegParm(8,scanHeader,"Al","Successive approximation bit position low or point transform");
+        readJpegParm(4,scanHeader,"Ah&Al","Successive approximation bit position high");
 
         connect(ui->HexEdit, SIGNAL(currentAddressChanged(int)), this, SLOT(setSelection(int)));
         for (;;) {
